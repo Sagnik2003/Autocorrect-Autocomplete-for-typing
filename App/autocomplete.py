@@ -1,284 +1,282 @@
-import re
-from collections import Counter
+import math
+import random
 import numpy as np
 import pandas as pd
-import os
+import nltk
+# Assuming the user has run nltk.download('punkt') successfully 
+# in the environment's terminal/interpreter as needed.
 
-# file_path = 'Autocorrect and Autocomplete/App/data/shakespeare.txt'
-# print("Looking for:", os.path.abspath(file_path))
-# print("Exists:", os.path.exists(file_path))
+from nltk.tokenize import word_tokenize
+# Setting nltk.data.path.append('.') is generally fine, 
+# but often the source of LookupErrors if the data isn't there.
+# Use absolute paths if errors persist!
+# nltk.data.path.append('.') 
 
-
-def process_data(file_name):
-    words = []
-    with open(file_name, 'r',encoding='utf-8') as file:
-        file_content = file.read()
-    file_content = file_content.lower()
+with open("Autocorrect and Autocomplete/App/data/shakespeare.txt", "r") as f:
+    data = f.read()
     
-    words = re.findall(r'\w+', file_content )
-    return words
-
-
-word_l = process_data('Autocorrect and Autocomplete/App/data/shakespeare.txt') #Autocorrect and Autocomplete\App\data\demo.txt
-vocab = set(word_l)
-
-
-# print(f"Total unique words: {len(vocab)}")
-
-def get_count(word_l):
-    word_count_dict = {}
+def split_to_sentences(data):
+    # Use splitlines(True) if you want to keep the newline, but split("\n") is fine here
+    sentences = data.split("\n") 
     
-    for word in set(word_l):
-        word_count_dict[word] = word_l.count(word)
+    sentences = [s.strip() for s in sentences]
+    sentences = [s for s in sentences if len(s) > 0]
+    return sentences
+
+def tokenize_sentences(sentences):
+    # Renamed the internal list variable to avoid conflict with the function name
+    tokenized_list = []
+    for sentence in sentences:
+        sentence = sentence.lower()
+        # Use nltk.word_tokenize on the single sentence string
+        tokenized = word_tokenize(sentence)
+        tokenized_list.append(tokenized)
+    return tokenized_list
+
+# # test your code
+# sentences = ["Sky is blue.", "Leaves are green.", "Roses are red."]
+# print(tokenize_sentences(sentences))
+
+def tokenize_data(data):
+    sentences = split_to_sentences(data)
+    tokenized_sentences = tokenize_sentences(sentences)
+    return tokenized_sentences
+
+def count_words(tokenized_sentences):
+    word_counts = {}
+    for sentence in tokenized_sentences:
+        for token in sentence:
+            if token not in word_counts.keys():
+                word_counts[token] = 1
+            else:
+                word_counts[token] += 1
+    return word_counts
+
+def get_words_with_nplus_frequency(tokenized_sentences, count_threshold):
+    word_counts = count_words(tokenized_sentences)
+    closed_vocab = [word for word, count in word_counts.items() if count >= count_threshold]
+    return closed_vocab
+
+def replace_oov_words_by_unk(tokenized_sentences, vocabulary,unknown_token="<UNK>"):
+    vocabulary = set(vocabulary)
+    updated_tokenized_sentences = []
+    for sentence in tokenized_sentences:
+        updated_sentence = []
+        for token in sentence:
+            if token in vocabulary:
+                updated_sentence.append(token)
+            else:
+                updated_sentence.append(unknown_token)
+        updated_tokenized_sentences.append(updated_sentence)
+    return updated_tokenized_sentences
+
+def preprocess_data(train_data, test_data, count_threshold, unknown_token = "<UNK>", get_words_with_nplus_frequency_fn = get_words_with_nplus_frequency):
+    tokenized_train_sentences = tokenize_data(train_data)
+    vocabulary = get_words_with_nplus_frequency_fn(tokenized_train_sentences, count_threshold)
+    
+    tokenized_train_sentences = replace_oov_words_by_unk(tokenized_train_sentences, vocabulary, unknown_token)
+    
+    tokenized_test_sentences = tokenize_data(test_data)
+    tokenized_test_sentences = replace_oov_words_by_unk(tokenized_test_sentences, vocabulary, unknown_token)
+    
+    return tokenized_train_sentences, tokenized_test_sentences, vocabulary
+
+
+def count_n_grams(data, n , start_token = '<s>', end_token = '</s>'):
+    n_gram_counts = {}
+    for sentence in data:
+        # Add start and end tokens
+        sentence = [start_token] * n + sentence + [end_token]
+        L  = len(sentence)
+        m = L - n + 1
+        for i in range(m):
+            n_gram = tuple(sentence[i:i+n])
+            if n_gram in n_gram_counts.keys():
+                n_gram_counts[n_gram] += 1
+            else:
+                n_gram_counts[n_gram] = 1
+    return n_gram_counts
+
+def estimate_probability(word,previous_n_gram,n_gram_counts, n_plus1_gram_counts, vocabulary_size, k = 1.0):
+    previous_n_gram = tuple(previous_n_gram)
+    previous_n_gram_count = n_gram_counts.get(previous_n_gram, 0)
+    denominator = previous_n_gram_count + k * vocabulary_size
+    n_plus1_gram = previous_n_gram + (word,)
+    n_plus1_gram_count = n_plus1_gram_counts.get(n_plus1_gram, 0)
+    numerator = n_plus1_gram_count + k
+    probability = numerator / denominator
+    return probability
+
+def estimate_probabilities(previous_n_gram, n_gram_counts, n_plus1_gram_counts, vocabulary, end_token='<e>', unknown_token="<unk>",  k=1.0):
+
+    previous_n_gram = tuple(previous_n_gram)    
+    vocabulary = vocabulary + [end_token, unknown_token]    
+    vocabulary_size = len(vocabulary)    
+    probabilities = {}
+    for word in vocabulary:
+        probability = estimate_probability(word, previous_n_gram, 
+                                           n_gram_counts, n_plus1_gram_counts, 
+                                           vocabulary_size, k=k)
+        probabilities[word] = probability
+    return probabilities
+
+def make_count_matrix(n_plus1_gram_counts, vocabulary):
+    # add <e> <unk> to the vocabulary
+    # <s> is omitted since it should not appear as the next word
+    vocabulary = vocabulary + ["<e>", "<unk>"]
+    
+    # obtain unique n-grams
+    n_grams = []
+    for n_plus1_gram in n_plus1_gram_counts.keys():
+        n_gram = n_plus1_gram[0:-1]        
+        n_grams.append(n_gram)
+    n_grams = list(set(n_grams))
+    
+    # mapping from n-gram to row
+    row_index = {n_gram:i for i, n_gram in enumerate(n_grams)}    
+    # mapping from next word to column
+    col_index = {word:j for j, word in enumerate(vocabulary)}    
+    
+    nrow = len(n_grams)
+    ncol = len(vocabulary)
+    count_matrix = np.zeros((nrow, ncol))
+    for n_plus1_gram, count in n_plus1_gram_counts.items():
+        n_gram = n_plus1_gram[0:-1]
+        word = n_plus1_gram[-1]
+        if word not in vocabulary:
+            continue
+        i = row_index[n_gram]
+        j = col_index[word]
+        count_matrix[i, j] = count
+    
+    count_matrix = pd.DataFrame(count_matrix, index=n_grams, columns=vocabulary)
+    return count_matrix
+
+def make_probability_matrix(n_plus1_gram_counts, vocabulary, k):
+    count_matrix = make_count_matrix(n_plus1_gram_counts, vocabulary)
+    count_matrix += k
+    prob_matrix = count_matrix.div(count_matrix.sum(axis=1), axis=0)
+    return prob_matrix
+
+
+def calculate_perplexity(sentence, n_gram_counts, n_plus1_gram_counts, vocabulary_size, start_token='<s>', end_token = '<e>', k=1.0):
+    n = len(list(n_gram_counts.keys())[0]) 
+    sentence = [start_token] * n + sentence + [end_token]
+    sentence = tuple(sentence)
+    N = len(sentence)
+    product_pi = 1.0
+    for t in range(n, N):
+        n_gram = sentence[t-n:t]
+        word = sentence[t]
+        probability = estimate_probability(word, n_gram, n_gram_counts, n_plus1_gram_counts, vocabulary_size, k)
+        product_pi *= 1/probability
+    perplexity = (product_pi)**(1/N)
+
+    return perplexity
+
+# UNQ_C11 GRADED FUNCTION: suggest_a_word
+def suggest_a_word(previous_tokens, n_gram_counts, n_plus1_gram_counts, vocabulary, end_token='<e>', unknown_token="<unk>", k=1.0, start_with=None):
+    """
+    Get suggestion for the next word
+    
+    Args:
+        previous_tokens: The sentence you input where each token is a word. Must have length >= n 
+        n_gram_counts: Dictionary of counts of n-grams
+        n_plus1_gram_counts: Dictionary of counts of (n+1)-grams
+        vocabulary: List of words
+        k: positive constant, smoothing parameter
+        start_with: If not None, specifies the first few letters of the next word
         
-    return word_count_dict
+    Returns:
+        A tuple of 
+          - string of the most likely next word
+          - corresponding probability
+    """
+    
+    # length of previous words
+    n = len(list(n_gram_counts.keys())[0])
+    
+    # append "start token" on "previous_tokens"
+    previous_tokens = ['<s>'] * n + previous_tokens
+    
+    # From the words that the user already typed
+    # get the most recent 'n' words as the previous n-gram
+    previous_n_gram = previous_tokens[-n:]
 
-
-word_count_dict = get_count(word_l)
-# print(f"There are {len(word_count_dict)} key values pairs")
-# print(f"The count for the word 'thee' is {word_count_dict.get('thee',0)}")
+    # Estimate the probabilities that each word in the vocabulary
+    # is the next word,
+    # given the previous n-gram, the dictionary of n-gram counts,
+    # the dictionary of n plus 1 gram counts, and the smoothing constant
+    probabilities = estimate_probabilities(previous_n_gram,
+                                           n_gram_counts, n_plus1_gram_counts,
+                                           vocabulary, k=k)
     
-def get_probs(word_count_dict):
-    probs = {}
+    # Initialize suggested word to None
+    # This will be set to the word with highest probability
+    suggestion = None
     
-    M = sum(word_count_dict.values())
-    for word in word_count_dict.keys():
-        probs[word] = word_count_dict[word] / M
-    return probs
-
-probs = get_probs(word_count_dict)
-# print(f"Length of probs is {len(probs)}")
-# print(f"P('thee') is {probs['thee']:.4f}")
-
-def delete_letter(word,verbose = False):
-    delete_l = []
-    split_l = []
+    # Initialize the highest word probability to 0
+    # this will be set to the highest probability 
+    # of all words to be suggested
+    max_prob = 0
     
-    split_l = [(word[:i], word[i:]) for i in range(len(word)+1)]
-    delete_l = [(a+b[1:])for a,b in split_l]
+    ### START CODE HERE ###
     
-    if verbose:
-        print(f"delete_letter('{word}')")
-        print(f"split_l: {split_l}")
-        print(f"delete_l: {delete_l}")
-    return delete_l
-
-# delete_word_l = delete_letter(word="cans",
-#                         verbose=True)
-
-def switch_leter(word,verbose = False):
-    switch_l = []
-    split_l = []
-    
-    split_l = [(word[:i], word[i:]) for i in range(len(word)-1)]
-    switch_l = [a + b[1] + b[0] + b[2:] for a,b in split_l]
-    
-    if verbose:
-        print(f"switch_letter('{word}')")
-        print(f"split_l: {split_l}")
-        print(f"switch_l: {switch_l}")
-    return switch_l
-
-# switch_word_l = switch_leter(word="cans",
-#                         verbose=True)
-
-def replace_letter(word,verbose = False):
-    letters = 'abcdefghijklmnopqrstuvwxyz'
-    
-    replace_l = []
-    split_l = []
-    
-    split_l = [(word[:i], word[i:]) for i in range(len(word))]
-    replace_l = [a + l +(b[1:] if len(b)>1 else '') for a,b in split_l if b for l in letters]
-    replace_l = set(replace_l)
-    replace_l.remove(word)
-    
-    replace_l = sorted(replace_l)
-    
-    if verbose:
-        print(f"replace_letter('{word}')")
-        print(f"split_l: {split_l}")
-        print(f"replace_l: {replace_l}")
-    return replace_l
-
-# replace_word_l = replace_letter(word="cans",
-#                         verbose=True)
-
-def insert_letter(word,verbose = False):
-    letters = 'abcdefghijklmnopqrstuvwxyz'
-    
-    insert_l = []
-    split_l = []
-    
-    split_l = [(word[:i], word[i:]) for i in range(len(word)+1)]
-    insert_l = [a + l + b for a,b in split_l for l in letters]
-    
-    if verbose:
-        print(f"insert_letter('{word}')")
-        print(f"split_l: {split_l}")
-        print(f"insert_l: {insert_l}")
-    return insert_l
-
-# insert_l = insert_letter('at', True)
-# print(f"Number of strings output by insert_letter('at') is {len(insert_l)}")
-
-def edit_one_letter(word,allow_switches = True):
-    edit_one_set = set()
-    edit_one_set.update(delete_letter(word))
-    edit_one_set.update(replace_letter(word))
-    edit_one_set.update(insert_letter(word))
-    if allow_switches:
-        edit_one_set.update(switch_leter(word))
+    # For each word and its probability in the probabilities dictionary:
+    for word, prob in probabilities.items(): # complete this line
         
-    return edit_one_set
+        # If the optional start_with string is set
+        if start_with: # complete this line with the proper condition
+            
+            # Check if the beginning of word does not match with the letters in 'start_with'
+            if not word.startswith(start_with): # complete this line with the proper condition
+
+                # if they don't match, skip this word (move onto the next word)
+                continue
+        
+        # Check if this word's probability
+        # is greater than the current maximum probability
+        if prob > max_prob: # complete this line with the proper condition
+            
+            # If so, save this word as the best suggestion (so far)
+            suggestion = word 
+            
+            # Save the new maximum probability
+            max_prob = prob
+
+    ### END CODE HERE
+    
+    return suggestion, max_prob
 
 
-# tmp_word = "at"
-# tmp_edit_one_set = edit_one_letter(tmp_word)
-# # turn this into a list to sort it, in order to view it
-# tmp_edit_one_l = sorted(list(tmp_edit_one_set))
+# # test your code
+# sentences = [['i', 'like', 'a', 'cat'],
+#              ['this', 'dog', 'is', 'like', 'a', 'cat']]
+# unique_words = list(set(sentences[0] + sentences[1]))
 
-# print(f"input word {tmp_word} \n edit_one_l \n{tmp_edit_one_l}\n")
-# print(f"The type of the returned object should be a set {type(tmp_edit_one_set)}")
-# print(f"Number of outputs from edit_one_letter('at') is {len(edit_one_letter('at'))}")
+# unigram_counts = count_n_grams(sentences, 1)
+# bigram_counts = count_n_grams(sentences, 2)
 
-def edit_two_letters(word, allow_switches = True):
-    edit_two_set = set()
-    edit_one = edit_one_letter(word,allow_switches = allow_switches)
-    for w in edit_one:
-        if w:
-            edit_two = edit_one_letter(w,allow_switches= allow_switches)
-            edit_two_set.update(edit_two)
-    return set(edit_two_set)
+# previous_tokens = ["i", "like"]
+# tmp_suggest1 = suggest_a_word(previous_tokens, unigram_counts, bigram_counts, unique_words, k=1.0)
+# print(f"The previous words are 'i like',\n\tand the suggested word is `{tmp_suggest1[0]}` with a probability of {tmp_suggest1[1]:.4f}")
 
+# print()
+# # test your code when setting the starts_with
+# tmp_starts_with = 'c'
+# tmp_suggest2 = suggest_a_word(previous_tokens, unigram_counts, bigram_counts, unique_words, k=1.0, start_with=tmp_starts_with)
+# print(f"The previous words are 'i like', the suggestion must start with `{tmp_starts_with}`\n\tand the suggested word is `{tmp_suggest2[0]}` with a probability of {tmp_suggest2[1]:.4f}")
 
-# tmp_edit_two_set = edit_two_letters("a")
-# tmp_edit_two_l = sorted(list(tmp_edit_two_set))
-# print(f"Number of strings with edit distance of two: {len(tmp_edit_two_l)}")
-# print(f"First 10 strings {tmp_edit_two_l[:10]}")
-# print(f"Last 10 strings {tmp_edit_two_l[-10:]}")
-# print(f"The data type of the returned object should be a set {type(tmp_edit_two_set)}")
-# print(f"Number of strings that are 2 edit distances from 'at' is {len(edit_two_letters('at'))}")
-
-# def edit_three_letters(word, allow_switches = True):
-#     edit_three_set = set()
-#     edit_two = edit_two_letters(word,allow_switches = allow_switches)
-#     for w in edit_two:
-#         if w:
-#             edit_three = edit_one_letter(w,allow_switches= allow_switches)
-#             edit_three_set.update(edit_three)
-#     return set(edit_three_set)
-
-
-def get_corrections(word, probs,vocab, n=3, verbose = True):
+def get_suggestions(previous_tokens, n_gram_counts_list, vocabulary, k=1.0, start_with=None):
+    model_counts = len(n_gram_counts_list)
     suggestions = []
-    n_best = []
-    
-    suggestions = list((word in vocab and word)or edit_one_letter(word).intersection(vocab) or edit_two_letters(word).intersection(vocab)) # or edit_three_letters(word).intersection(vocab))
-    n_best = [[s,probs.get(s,0)] for s in list(reversed(suggestions))]
-    
-    if verbose:
-        print("entered word:", word)
-        print("suggestions:", suggestions)
-    return n_best
-
-# # Test your implementation - feel free to try other words in my word
-# my_word = 'dys' 
-# tmp_corrections = get_corrections(my_word, probs, vocab,n=3, verbose=True) # keep verbose=True
-# for i, word_prob in enumerate(tmp_corrections):
-#     print(f"word {i}: {word_prob[0]}, probability {word_prob[1]:.6f}")
-
-# # CODE REVIEW COMMENT: using "tmp_corrections" insteads of "cors". "cors" is not defined
-# print(f"data type of corrections {type(tmp_corrections)}")
-
-def min_edit_distance(source,target, ins_cost = 1, del_cost = 1, rep_cost = 2):
-    m = len(source)
-    n = len(target)
-    
-    D = np.zeros((m+1,n+1), dtype=int)
-    
-    for row in range(1,m+1):
-        D[row,0] = D[row-1,0] + del_cost
+    for i in range(model_counts-1):
+        n_gram_counts = n_gram_counts_list[i]
+        n_plus1_gram_counts = n_gram_counts_list[i+1]
         
-    for col in range(1,n+1):
-        D[0,col] = D[0,col-1] + ins_cost
-    
-    for row in range(1,m+1):
-        for col in range(1,n+1):
-            r_cost =  rep_cost
-            if source[row-1] == target[col-1]:
-                r_cost = 0
-            D[row,col] = min(D[row-1,col] + del_cost,
-                            D[row,col-1] + ins_cost,
-                            D[row-1,col-1] + r_cost)
-    med = D[m,n]
-    return D, med
+        suggestion = suggest_a_word(previous_tokens, n_gram_counts,
+                                    n_plus1_gram_counts, vocabulary,
+                                    k=k, start_with=start_with)
+        suggestions.append(suggestion)
+    return suggestions
 
-
-# source =  'play'
-# target = 'stay'
-# matrix, min_edits = min_edit_distance(source, target)
-# print("minimum edits: ",min_edits, "\n")
-# idx = list('#' + source)
-# cols = list('#' + target)
-# df = pd.DataFrame(matrix, index=idx, columns= cols)
-# print(df)
-
-
-# #DO NOT MODIFY THIS CELL
-# # testing your implementation 
-# source =  'eer'
-# target = 'near'
-# matrix, min_edits = min_edit_distance(source, target)
-# print("minimum edits: ",min_edits, "\n")
-# idx = list(source)
-# idx.insert(0, '#')
-# cols = list(target)
-# cols.insert(0, '#')
-# df = pd.DataFrame(matrix, index=idx, columns= cols)
-# print(df)
-def display_med_matrix(source,target,matrix):
-    idx = list(source)
-    idx.insert(0, '#')
-    cols = list(target)
-    cols.insert(0, '#')
-    df = pd.DataFrame(matrix, index=idx, columns= cols)
-    print("\n")
-    print(df)
-    print("\n")
-    
-    
-def get_corrections_by_med(word, probs,vocab, n=3, verbose = True, display_matrix = False):
-    suggestions = []
-    n_best = []
-    
-    suggestions = list((word in vocab and word)or edit_one_letter(word).intersection(vocab) or edit_two_letters(word).intersection(vocab) ) # or edit_three_letters(word).intersection(vocab))
-    
-    med_list = []
-    for s in suggestions:
-        D, med = min_edit_distance(word, s)
-        med_list.append((s, med, probs.get(s,0)))
-    
-    # sort by min edit distance first, then by probability
-    med_list = sorted(med_list, key=lambda x: (x[1], -x[2]))
-    
-    n_best = med_list[:n]
-    
-    autocorrected_words = [w[0] for w in n_best]
-    if verbose:
-        print("entered word:", word)
-        print("suggestions:", autocorrected_words)
-    if display_matrix:
-        for w in autocorrected_words:
-            D, _ = min_edit_distance(word, w)
-            display_med_matrix(word, w, D)
-    return autocorrected_words
-
-# get_corrections_by_med('pyy', probs, vocab, n=3, verbose=True,display_matrix=False)
-
-if __name__ == "__main__":
-    # Example usage
-    word = input("Enter a word for autocorrection: ")
-    # Get corrections using the new method
-    corrections = get_corrections_by_med(word, probs, vocab, n=3, verbose=True, display_matrix=False)
-    print(f"Corrections for '{word}': {corrections}")
