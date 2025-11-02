@@ -177,7 +177,7 @@ This project is licensed under the **MIT License** © 2025 — Free to use, modi
 ## 🧩 Quick Demo Workflow
 
 1. Start typing a sentence.
-2. Blue buttons appear for misspelled words.
+2. Blue buttons appear for correction for misspelled words.
 3. Green buttons predict your next words.
 4. Click one — it inserts automatically, and typing continues seamlessly.
 5. Suggestions keep updating in real time.
@@ -188,7 +188,3 @@ This project is licensed under the **MIT License** © 2025 — Free to use, modi
 
 ---
 
-```
-
-Would you like me to include a **live demo badge** (that links to a running Flask instance or a Hugging Face Space, if you deploy it)? It makes your GitHub repo instantly interactive for viewers.
-```
