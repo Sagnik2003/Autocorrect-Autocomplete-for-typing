@@ -57,7 +57,7 @@ cd autocorrect-autocomplete-app
 
 ### 2️⃣ Install Dependencies
 use the command to install the dependencies
-~pip install -r requirements.txt`
+`pip install -r requirements.txt`
 
 
 ### 3️⃣ Run the App
