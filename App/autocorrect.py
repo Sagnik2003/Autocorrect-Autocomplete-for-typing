@@ -19,10 +19,6 @@ def process_data(file_name):
     return words
 
 
-word_l = process_data('Autocorrect and Autocomplete/App/data/shakespeare.txt') #Autocorrect and Autocomplete\App\data\demo.txt
-vocab = set(word_l)
-
-
 # print(f"Total unique words: {len(vocab)}")
 
 def get_count(word_l):
@@ -34,7 +30,7 @@ def get_count(word_l):
     return word_count_dict
 
 
-word_count_dict = get_count(word_l)
+# word_count_dict = get_count(word_l)
 # print(f"There are {len(word_count_dict)} key values pairs")
 # print(f"The count for the word 'thee' is {word_count_dict.get('thee',0)}")
     
@@ -46,7 +42,7 @@ def get_probs(word_count_dict):
         probs[word] = word_count_dict[word] / M
     return probs
 
-probs = get_probs(word_count_dict)
+# probs = get_probs(word_count_dict)
 # print(f"Length of probs is {len(probs)}")
 # print(f"P('thee') is {probs['thee']:.4f}")
 
@@ -277,6 +273,9 @@ def get_corrections_by_med(word, probs,vocab, n=3, verbose = True, display_matri
 # get_corrections_by_med('pyy', probs, vocab, n=3, verbose=True,display_matrix=False)
 
 if __name__ == "__main__":
+    word_l = process_data('Autocorrect and Autocomplete/App/data/AllCombined.txt') #Autocorrect and Autocomplete\App\data\demo.txt
+    vocab = set(word_l)
+    probs = get_probs(get_count(word_l))
     # Example usage
     word = input("Enter a word for autocorrection: ")
     # Get corrections using the new method

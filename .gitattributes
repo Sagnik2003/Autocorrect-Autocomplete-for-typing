@@ -1,0 +1,2 @@
+App/data/*.pkl filter=lfs diff=lfs merge=lfs -text
+App/data/*.txt filter=lfs diff=lfs merge=lfs -text

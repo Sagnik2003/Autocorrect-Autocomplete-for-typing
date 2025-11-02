@@ -1,93 +1,78 @@
 import os
-from flask import Flask, request, jsonify, render_template
-from autocomplete import *
-import numpy as np
 import time
+import pickle
+import numpy as np
+from flask import Flask, request, jsonify, render_template
+from Autocorrect_mod import *
+from Autocomplete_mod import *
 
-# --- Fixes Start Here ---
-
-# Get the absolute path of the directory this file (app.py) is in
+# --- Paths & setup ---
 base_dir = os.path.abspath(os.path.dirname(__file__))
-
-# 1. Tell Flask where the 'templates' folder is
 template_folder = os.path.join(base_dir, 'templates')
-
-# 2. Tell Flask where the 'Static' folder is (since yours is capitalized)
 static_folder = os.path.join(base_dir, 'Static')
+app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
 
-# 3. Create the app instance with the correct paths
-app = Flask(__name__, 
-            template_folder=template_folder, 
-            static_folder=static_folder)
+MODEL_DIR = os.path.join(base_dir, 'data')
+MODEL_FILE1 = os.path.join(MODEL_DIR, "autocorrect_model_data.pkl")
+MODEL_FILE2 = os.path.join(MODEL_DIR, "autocomplete_model_data.pkl")
 
-# --- Fixes End Here ---
+# --- Model loading ---
+vocab, probs = set(), {}
+vocabulary, n_gram_counts_list = set(), []
 
+try:
+    print("Loading Autocorrect model...")
+    vocab, probs = load_model_autocorrect(MODEL_FILE1)
+    print(f"Autocorrect model loaded. Vocab size: {len(vocab)}")
+except Exception as e:
+    print(f"Error loading autocorrect model: {e}")
 
-# Dummy corpus for suggestions
-vocab = None
-WORDS = None
-word_count_dict = None
-probs = None
+try:
+    print("Loading Autocomplete model...")
+    vocabulary, n_gram_counts_list = load_model(MODEL_FILE2)
+    print(f"Autocomplete model loaded. Vocabulary size: {len(vocabulary)}")
+except Exception as e:
+    print(f"Error loading autocomplete model: {e}")
 
-def load_corpus():
-    global vocab, WORDS, word_count_dict, probs
-    if vocab is None:
-        # 4. Fix the data file path to be relative to app.py
-        print("Loading corpus...")
-        A = time.time()
-        data_path = os.path.join(base_dir, 'data', 'shakespeare.txt')
-        B = time.time()
-        print(f"Time to get data path: {B - A:.4f} seconds")
-        
-        vocab = process_data(data_path)
-        WORDS = set(vocab)
-        word_count_dict = get_count(vocab)
-        probs = get_probs(word_count_dict)
-
+# --- Core functions ---
 def autocorrect(word):
-    """
-    Suggests possible corrections for a given word using Levenshtein distance and word probabilities.
-    """
-    load_corpus()
-    suggestions = get_corrections_by_med(word, probs, WORDS, n=3, verbose=False, display_matrix=False)
-    return suggestions
+    if not vocab or not probs:
+        return []
+    return get_corrections_by_med(word.lower(), probs, vocab=vocab, n=3, verbose=False, display_matrix=False)[:3]
 
-# # 5. Uncomment your autocomplete function (your JS needs it!)
-# def autocomplete(prefix):
-#     """
-#     Returns a list of suggested word completions based on the given prefix.
-#     """
-#     # 🔹 Replace this with n-gram probabilities
-#     if prefix.lower().endswith("i am"):
-#         return ["happy", "tired", "learning"]
-#     elif prefix.lower().endswith("hello"):
-#         return ["world", "there", "everyone"]
-#     else:
-#         return ["test", "project", "fun"]
 
+def generate_autocomplete(prefix):
+    """Predict the next possible word(s) after the current sequence."""
+    if not prefix.strip():
+        return []
+    tokens = prefix.lower().split()
+    # Predict *next* words, not words starting with the last token
+    suggestions_with_probs = get_suggestions(tokens, n_gram_counts_list, vocabulary, k=1.0, start_with=None)
+    return [s[0] for s in suggestions_with_probs[:5]]
+
+# --- Routes ---
 @app.route("/")
 def index():
     return render_template("Front.html")
 
-@app.route("/autocorrect")
+
+@app.route("/autocorrect", methods=["GET"])
 def autocorrect_api():
-    """
-    API endpoint that returns autocorrect suggestions for a given word.
-    Expects a 'word' query parameter and returns a JSON response with suggestions.
-    """
     word = request.args.get("word", "")
     if not word:
-        return jsonify({"error": "Missing 'word' parameter"}), 400
+        return jsonify({"suggestions": []}), 200
     suggestions = autocorrect(word)
-    return jsonify(suggestions)
+    return jsonify({"suggestions": suggestions}), 200
 
-# # 6. Uncomment your autocomplete API route (your JS needs this!)
-# @app.route("/autocomplete")
-# def autocomplete_api():
-#     prefix = request.args.get("prefix", "")
-#     if not prefix:
-#         return jsonify({"error": "Missing required parameter: prefix"}), 400
-#     return jsonify(autocomplete(prefix))
+
+@app.route("/autocomplete", methods=["GET"])
+def autocomplete_api():
+    prefix = request.args.get("prefix", "")
+    if not prefix:
+        return jsonify({"suggestions": []}), 200
+    predictions = generate_autocomplete(prefix)
+    return jsonify({"suggestions": predictions}), 200
+
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, threaded = True)
