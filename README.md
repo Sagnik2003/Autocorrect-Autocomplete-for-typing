@@ -15,7 +15,7 @@ Designed to feel natural, intelligent, and fast. ✨
 ## 🎬 Preview
 
 ![Demo GIF Placeholder](https://github.com/Sagnik2003/Autocorrect-Autocomplete-for-typing/blob/main/project%20demo.gif)  
-*(Replace with your demo GIF once ready!)*
+
 
 ---
 
