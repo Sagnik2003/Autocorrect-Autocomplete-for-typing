@@ -56,18 +56,9 @@ cd autocorrect-autocomplete-app
 ````
 
 ### 2️⃣ Install Dependencies
+use the command to install the dependencies
+~pip install -r requirements.txt`
 
-Make sure you have Python 3.8+ installed.
-
-```bash
-pip install flask
-```
-
-For advanced models:
-
-```bash
-pip install transformers torch
-```
 
 ### 3️⃣ Run the App
 
