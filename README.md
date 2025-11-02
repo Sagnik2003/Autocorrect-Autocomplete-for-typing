@@ -1,5 +1,5 @@
 
-# 🧠 Autocorrect + Autocomplete Web App
+# 🧠 TypeSmart Web App
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg?logo=python)
 ![Flask](https://img.shields.io/badge/Flask-Backend-black.svg?logo=flask)
