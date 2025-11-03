@@ -145,8 +145,8 @@ You can easily modify:
 ## 👨‍💻 Author
 
 **Sagnik Kayal**
-[![GitHub](https://img.shields.io/badge/GitHub-SagnikKayal-black?logo=github)](https://github.com/Sagnik2003)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?logo=linkedin)](https://www.linkedin.com/in/sagnik-kayal/)
+[![GitHub](https://img.shields.io/badge/GitHub-SagnikKayal-black?logo=github)](https://github.com/yourusername)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?logo=linkedin)](https://linkedin.com/in/yourlinkedin)
 
 ---
 
