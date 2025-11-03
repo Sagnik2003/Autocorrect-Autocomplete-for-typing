@@ -51,8 +51,8 @@ Designed to feel natural, intelligent, and fast. ✨
 
 ### 1️⃣ Clone the Repository
 ```bash
-git clone https://github.com/yourusername/autocorrect-autocomplete-app.git
-cd autocorrect-autocomplete-app
+git clone https://github.com/Sagnik2003/TypeSmart.git
+cd TypeSmart
 ````
 
 ### 2️⃣ Install Dependencies
@@ -145,8 +145,8 @@ You can easily modify:
 ## 👨‍💻 Author
 
 **Sagnik Kayal**
-[![GitHub](https://img.shields.io/badge/GitHub-SagnikKayal-black?logo=github)](https://github.com/yourusername)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?logo=linkedin)](https://linkedin.com/in/yourlinkedin)
+[![GitHub](https://img.shields.io/badge/GitHub-SagnikKayal-black?logo=github)](https://github.com/Sagnik2003)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?logo=linkedin)](https://www.linkedin.com/in/sagnik-kayal/)
 
 ---
 
